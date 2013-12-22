@@ -1,4 +1,4 @@
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template
 app = Flask(__name__)
 
 @app.route('/')
@@ -7,7 +7,9 @@ def index():
 
 @app.route('/temps.csv')
 def temps():
-    return send_from_directory('', 'temps.csv')
+    with open('temps.csv') as log_file:
+        temps = log_file.read()
+    return temps
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')

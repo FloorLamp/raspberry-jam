@@ -110,7 +110,7 @@
             .text('Temperature (F)');
             
         svg.append('path')
-            .data([temps])
+            .datum(temps)
             .attr('class', 'line')
             .attr('d', line);
             
@@ -123,7 +123,7 @@
             y.domain(d3.extent(temps, function(d) { return d[1]; }));
 
             svg.select('.line')
-                .data([temps])
+                .datum(temps)
                 .attr('d', line);
                 
             svg.select('.x.axis')

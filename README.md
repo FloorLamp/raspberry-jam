@@ -1,4 +1,4 @@
-Raspberry Pi Command Center
+Raspberry Jam
 ===========================
 
 This will eventually be a home control center. Right now it only has temperature logging.

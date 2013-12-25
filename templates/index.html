@@ -7,6 +7,7 @@
   <title>Raspberry Jam</title>
   <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
   <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap-theme.min.css">
+  <link rel="icon" type="image/png" href="static/img/jam.png" />
   <style type="text/css">
     .axis path,
     .axis line {
@@ -22,6 +23,12 @@
       stroke: steelblue;
       stroke-width: 1.5px;
     }
+    .navbar-brand {
+      background: url(static/img/jam.png) no-repeat;
+      background-size: 32px 32px;
+      background-position: 4px 8px;
+      padding-left: 44px;
+    }
     #current-temp {
       margin-top: -43px;
     }
@@ -36,19 +43,21 @@
       <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-collapse-1">
         <span class="sr-only">Toggle navigation</span>
         <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
       </button>
       <a class="navbar-brand" href="#">Raspberry Jam</a>
     </div>
 
     <div class="collapse navbar-collapse" id="navbar-collapse-1">
       <ul class="nav navbar-nav navbar-left">
-        <li><a href="#">Link</a></li>
+        <li><a href="#">Temperature</a></li>
       </ul>
     </div>
     </div>
   </nav>
   <div class="container">
-    <h2>Temperatures</h2>
+    <h2>Temperature</h2>
     <h2 id="current-temp" class="text-right"></h2>
     <svg id="tempgraph"></svg>
   </div>
@@ -70,7 +79,7 @@
         
         setCurrentTemp();
         
-        var margin = {top: 20, right: 10, bottom: 20, left: 60},
+        var margin = {top: 20, right: 20, bottom: 20, left: 20},
             width = $('#tempgraph').width() - margin.left - margin.right,
             height = 500 - margin.top - margin.bottom;
 
@@ -87,12 +96,12 @@
             .scale(x)
             .orient('bottom')
             .tickFormat(d3.time.format('%m/%d %H:%M'))
-            .tickSize(-height, 0, 0);
+            .tickSize(-height, 0, -height);
 
         var yAxis = d3.svg.axis()
             .scale(y)
             .orient('left')
-            .tickSize(-width, 0, 0);
+            .tickSize(-width, 0, -width);
 
         var line = d3.svg.line()
             .x(function(d) { return x(d[0]); })
@@ -111,13 +120,7 @@
 
         svg.append('g')
             .attr('class', 'y axis')
-            .call(yAxis)
-          .append('text')
-            .attr('transform', 'rotate(-90)')
-            .attr('y', 6)
-            .attr('dy', '.71em')
-            .style('text-anchor', 'end')
-            .text('Temperature (F)');
+            .call(yAxis);
             
         svg.append('path')
             .datum(temps)

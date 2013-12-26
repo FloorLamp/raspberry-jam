@@ -80,39 +80,95 @@
       var inputTimeFormat = d3.time.format.utc('%Y-%m-%d %H:%M:%S');
           outputTimeFormat = d3.time.format('%A, %b %d %Y %I:%M %p');
       
-      var $currentTemp = $('#current-temp'),
-          $hoverTemp = $('#hover-temp');
-      
-      var graph = $('#tempgraph'),
-          margin = {top: 40, right: 5, bottom: 20, left: 20},
-          width = graph.width() - margin.left - margin.right,
+      var temps;
+
+      var graphSelector = '#tempgraph',
+          $currentTemp = $('#current-temp'),
+          $hoverTemp = $('#hover-temp'),
+          $graph = $(graphSelector);
+
+      var margin = {top: 40, right: 10, bottom: 20, left: 20},
+          width = $graph.width() - margin.left - margin.right,
           height = 500 - margin.top - margin.bottom,
           graphXOffset,
           graphYOffset;
       
       var x = d3.time.scale().range([0, width]),      
           y = d3.scale.linear().range([height, 0]);
-            
-      var svg = d3.select('#tempgraph')
+
+      var line = d3.svg.line()
+          .x(function(d) { return x(d[0]); })
+          .y(function(d) { return y(d[1]); });
+
+      var xAxis = d3.svg.axis()
+          .scale(x)
+          .orient('bottom')
+          .ticks(d3.time.day, 1)
+          .tickFormat(d3.time.format('%m/%d'))
+          .tickSize(-height, -height, -height);
+
+      var yAxis = d3.svg.axis()
+          .scale(y)
+          .orient('left')
+          .tickSize(-width, 0, -width);
+
+      var svg = d3.select(graphSelector)
           .attr('width', width + margin.left + margin.right)
           .attr('height', height + margin.top + margin.bottom)
         .append('g')
           .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
       
-      var temps;
+      svg.append('g')
+          .attr('class', 'y axis');
+          
+      svg.append('path')
+          .attr('class', 'line');
+
+      var xAxisG = svg.append('g')
+          .attr('class', 'x axis')
+          .attr('transform', 'translate(0,' + height + ')');
+
+      var hoverLineGroup = svg.append('g')
+          .attr('class', 'hover-line');
       
-      function formatRow(row) {
-          row[0] = inputTimeFormat.parse(row[0]);
-          row[1] = +row[1] * 9 / 5 + 32;
-      }
-      
-      var hoverLineGroup = svg.append('g').attr('class', 'hover-line'),
-          hoverLine = hoverLineGroup.append('svg:line')
-            .attr('x1', 10).attr('x2', 10)
-            .attr('y1', 0).attr('y2', height)
-            .classed('hide', true);
+      var hoverLineX = hoverLineGroup.append('line')
+          .attr('x1', 0).attr('x2', 0)
+          .attr('y1', 0).attr('y2', height)
+          .classed('hide', true);
+
+      var hoverLineY = hoverLineGroup.append('line')
+          .attr('x1', 0).attr('x2', width)
+          .attr('y1', 0).attr('y2', 0)
+          .classed('hide', true);
 				
       d3.text('temps.csv', function(data) {
+        updateGraph(data);
+        graphXOffset = margin.left + $graph.offset().left;
+        graphYOffset = margin.top + $graph.offset().top;
+          
+        $graph.mousemove(function(e) {
+          handleMouseOverGraph(e);
+        });
+        
+        $graph.mouseout(function(e) {
+          handleMouseOutGraph(e);
+        });
+        
+        setInterval(refreshData, 60000);
+      });
+      
+      function formatRow(row) {
+        row[0] = inputTimeFormat.parse(row[0]);
+        row[1] = +row[1] * 9 / 5 + 32;
+      }
+
+      function refreshData() {
+        d3.text('temps.csv', function(data) {
+          updateGraph(data);
+        });
+      }
+
+      function updateGraph(data) {
         temps = d3.csv.parseRows(data);
         temps.forEach(formatRow);
         
@@ -121,78 +177,34 @@
         x.domain([temps[0][0], temps[temps.length-1][0]]);
         y.domain(d3.extent(temps, function(d) { return d[1]; }));
 
-        var xAxis = d3.svg.axis()
-            .scale(x)
-            .orient('bottom')
-            .ticks(d3.time.day, 1)
-            .tickFormat(d3.time.format('%m/%d'))
-            .tickSize(-height, -height, -height);
+        xAxisG
+          .selectAll('.minor')
+          .remove();
 
-        var yAxis = d3.svg.axis()
-            .scale(y)
-            .orient('left')
-            .tickSize(-width, 0, -width);
-
-        var line = d3.svg.line()
-            .x(function(d) { return x(d[0]); })
-            .y(function(d) { return y(d[1]); });
-
-        var xAxisg = svg.append('g')
-            .attr('class', 'x axis')
-            .attr('transform', 'translate(0,' + height + ')')
-            .call(xAxis);
-
-        xAxisg.selectAll("line")
+        xAxisG
+          .call(xAxis)
+          .selectAll('line')
             .data(x.ticks(16), function(d) { return d; })
             .enter()
-            .append("line")
-            .attr("class", "minor")
-            .attr("y1", 0)
-            .attr("y2", -height)
-            .attr("x1", x)
-            .attr("x2", x);
+            .append('line')
+            .attr('class', 'minor')
+            .attr('y1', 0)
+            .attr('y2', -height)
+            .attr('x1', x)
+            .attr('x2', x);
 
-        svg.append('g')
-            .attr('class', 'y axis')
-            .call(yAxis);
-            
-        svg.append('path')
+        svg.select('.line')
             .datum(temps)
-            .attr('class', 'line')
             .attr('d', line);
-        
-        graphXOffset = margin.left + graph.offset().left;
-        graphYOffset = margin.top + graph.offset().top;
-          
-        graph.mousemove(function(e) {
-          handleMouseOverGraph(e);
-        });
-        
-        setInterval(function() {
-          d3.text('temps.csv', function(data) {
-            temps = d3.csv.parseRows(data);
-            temps.forEach(formatRow);
             
-            setCurrentTemp();
+        svg.select('.x.axis')
+            .call(xAxis);
             
-            x.domain([temps[0][0], temps[temps.length-1][0]]);
-            y.domain(d3.extent(temps, function(d) { return d[1]; }));
+        svg.select('.y.axis')
+            .call(yAxis);
+      }
 
-            svg.select('.line')
-                .datum(temps)
-                .attr('d', line);
-                
-            svg.select('.x.axis')
-                .call(xAxis);
-                
-            svg.select('.y.axis')
-                .call(yAxis);
-          });
-        }, 60000);
-      });
-      
       function setCurrentTemp() {
-        console.log(temps[temps.length-1]);
         $currentTemp.text(temps[temps.length-1][1].toFixed(2) + '° F');
       }
         
@@ -200,33 +212,38 @@
         var mouseX = event.pageX-graphXOffset,
             mouseY = event.pageY-graphYOffset;
         
-        if(mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
-          hoverLine
-            .attr("x1", mouseX)
-            .attr("x2", mouseX)
-            .classed("hide", false);
+        if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
+          hoverLineX
+            .attr('x1', mouseX)
+            .attr('x2', mouseX)
+            .classed('hide', false);
           
-          getPositionData(mouseX);          
+          var xValue = x.invert(mouseX),
+              index = (xValue.getTime() - temps[0][0].getTime()) / 60000,
+              yPos;
+
+          if (index >= temps.length) {
+            index = temps.length - 1;
+          } else {
+            index = Math.round(index);
+          }
+          
+          yPos = y(temps[index][1]);
+          hoverLineY
+            .attr('y1', yPos)
+            .attr('y2', yPos)
+            .classed('hide', false);
+            
+          $hoverTemp.text(outputTimeFormat(temps[index][0]) + ': ' + temps[index][1].toFixed(2) + '° F');       
         } else {
           handleMouseOutGraph(e);
         }
       }
       
       function handleMouseOutGraph(e) {
-        hoverLine.classed("hide", true);
+        hoverLineX.classed('hide', true);
+        hoverLineY.classed('hide', true);
         $hoverTemp.text('');
-      }
-      
-      function getPositionData(xpos) {
-        var xValue = x.invert(xpos),
-            index = (xValue.getTime() - temps[0][0].getTime()) / 60000;
-
-        if (index >= temps.length) {
-          index = temps.length - 1;
-        } else {
-          index = Math.round(index);
-        }
-        $hoverTemp.text(outputTimeFormat(temps[index][0]) + ': ' + temps[index][1].toFixed(2) + '° F');
       }
     })();
   </script>

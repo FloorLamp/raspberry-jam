@@ -9,19 +9,27 @@
   <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap-theme.min.css">
   <link rel="icon" type="image/png" href="static/img/jam.png" />
   <style type="text/css">
+    #body-container {
+      position: relative;
+    }
     .axis path,
     .axis line {
       fill: none;
       stroke: #000;
       shape-rendering: crispEdges;
     }
-    .tick line {
+    .y.axis .tick line,
+    line.minor {
       stroke: lightgray;
     }
     .line {
       fill: none;
       stroke: steelblue;
       stroke-width: 1.5px;
+    }
+    .hover-line line {
+      stroke: gray;
+      shape-rendering: crispEdges;
     }
     .navbar-brand {
       background: url(static/img/jam.png) no-repeat;
@@ -31,6 +39,10 @@
     }
     #current-temp {
       margin-top: -43px;
+    }
+    #hover-temp {
+      right: 20px;
+      position: absolute;
     }
   </style>
   <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"></script>
@@ -56,47 +68,65 @@
     </div>
     </div>
   </nav>
-  <div class="container">
+  <div class="container" id="body-container">
     <h2>Temperature</h2>
     <h2 id="current-temp" class="text-right"></h2>
+    <span id="hover-temp" class="text-right"></span>
     <svg id="tempgraph"></svg>
   </div>
   <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
   <script>
     (function() {
-      var timeformat = d3.time.format.utc('%Y-%m-%d %H:%M:%S');
+      var inputTimeFormat = d3.time.format.utc('%Y-%m-%d %H:%M:%S');
+          outputTimeFormat = d3.time.format('%A, %b %d %Y %I:%M %p');
       
-      var $currentTemp = $('#current-temp');
-        
+      var $currentTemp = $('#current-temp'),
+          $hoverTemp = $('#hover-temp');
+      
+      var graph = $('#tempgraph'),
+          margin = {top: 40, right: 5, bottom: 20, left: 20},
+          width = graph.width() - margin.left - margin.right,
+          height = 500 - margin.top - margin.bottom,
+          graphXOffset,
+          graphYOffset;
+      
+      var x = d3.time.scale().range([0, width]),      
+          y = d3.scale.linear().range([height, 0]);
+            
+      var svg = d3.select('#tempgraph')
+          .attr('width', width + margin.left + margin.right)
+          .attr('height', height + margin.top + margin.bottom)
+        .append('g')
+          .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+      
+      var temps;
+      
       function formatRow(row) {
-          row[0] = timeformat.parse(row[0]);
+          row[0] = inputTimeFormat.parse(row[0]);
           row[1] = +row[1] * 9 / 5 + 32;
       }
-        
+      
+      var hoverLineGroup = svg.append('g').attr('class', 'hover-line'),
+          hoverLine = hoverLineGroup.append('svg:line')
+            .attr('x1', 10).attr('x2', 10)
+            .attr('y1', 0).attr('y2', height)
+            .classed('hide', true);
+				
       d3.text('temps.csv', function(data) {
-        var temps = d3.csv.parseRows(data);
+        temps = d3.csv.parseRows(data);
         temps.forEach(formatRow);
         
         setCurrentTemp();
         
-        var margin = {top: 20, right: 20, bottom: 20, left: 20},
-            width = $('#tempgraph').width() - margin.left - margin.right,
-            height = 500 - margin.top - margin.bottom;
-
-        var x = d3.time.scale()
-            .range([0, width]);
-
-        var y = d3.scale.linear()
-            .range([height, 0]);
-
         x.domain([temps[0][0], temps[temps.length-1][0]]);
         y.domain(d3.extent(temps, function(d) { return d[1]; }));
-          
+
         var xAxis = d3.svg.axis()
             .scale(x)
             .orient('bottom')
-            .tickFormat(d3.time.format('%m/%d %H:%M'))
-            .tickSize(-height, 0, -height);
+            .ticks(d3.time.day, 1)
+            .tickFormat(d3.time.format('%m/%d'))
+            .tickSize(-height, -height, -height);
 
         var yAxis = d3.svg.axis()
             .scale(y)
@@ -107,16 +137,20 @@
             .x(function(d) { return x(d[0]); })
             .y(function(d) { return y(d[1]); });
 
-        var svg = d3.select('#tempgraph')
-            .attr('width', width + margin.left + margin.right)
-            .attr('height', height + margin.top + margin.bottom)
-          .append('g')
-            .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
-
-        svg.append('g')
+        var xAxisg = svg.append('g')
             .attr('class', 'x axis')
             .attr('transform', 'translate(0,' + height + ')')
             .call(xAxis);
+
+        xAxisg.selectAll("line")
+            .data(x.ticks(16), function(d) { return d; })
+            .enter()
+            .append("line")
+            .attr("class", "minor")
+            .attr("y1", 0)
+            .attr("y2", -height)
+            .attr("x1", x)
+            .attr("x2", x);
 
         svg.append('g')
             .attr('class', 'y axis')
@@ -126,7 +160,14 @@
             .datum(temps)
             .attr('class', 'line')
             .attr('d', line);
-            
+        
+        graphXOffset = margin.left + graph.offset().left;
+        graphYOffset = margin.top + graph.offset().top;
+          
+        graph.mousemove(function(e) {
+          handleMouseOverGraph(e);
+        });
+        
         setInterval(function() {
           d3.text('temps.csv', function(data) {
             temps = d3.csv.parseRows(data);
@@ -148,12 +189,45 @@
                 .call(yAxis);
           });
         }, 60000);
-        
-        function setCurrentTemp() {
-          console.log(temps[temps.length-1]);
-          $currentTemp.text(temps[temps.length-1][1].toFixed(2) + '° F');
-        }
       });
+      
+      function setCurrentTemp() {
+        console.log(temps[temps.length-1]);
+        $currentTemp.text(temps[temps.length-1][1].toFixed(2) + '° F');
+      }
+        
+      function handleMouseOverGraph(e) {
+        var mouseX = event.pageX-graphXOffset,
+            mouseY = event.pageY-graphYOffset;
+        
+        if(mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
+          hoverLine
+            .attr("x1", mouseX)
+            .attr("x2", mouseX)
+            .classed("hide", false);
+          
+          getPositionData(mouseX);          
+        } else {
+          handleMouseOutGraph(e);
+        }
+      }
+      
+      function handleMouseOutGraph(e) {
+        hoverLine.classed("hide", true);
+        $hoverTemp.text('');
+      }
+      
+      function getPositionData(xpos) {
+        var xValue = x.invert(xpos),
+            index = (xValue.getTime() - temps[0][0].getTime()) / 60000;
+
+        if (index >= temps.length) {
+          index = temps.length - 1;
+        } else {
+          index = Math.round(index);
+        }
+        $hoverTemp.text(outputTimeFormat(temps[index][0]) + ': ' + temps[index][1].toFixed(2) + '° F');
+      }
     })();
   </script>
  </body>
